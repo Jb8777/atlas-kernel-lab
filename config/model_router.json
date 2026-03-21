@@ -1,0 +1,13 @@
+{
+  "routing": {
+    "code_keywords": ["typescript", "javascript", "golang", "rust", "lint", "mypy", "type error"],
+    "research_keywords": ["literature", "survey", "review", "findings", "hypothesis"],
+    "ops_keywords": ["terraform", "helm", "ci/cd", "pipeline", "rollback", "slo", "sla"]
+  },
+  "models": {
+    "code": "openai/gpt-4o",
+    "research": "openai/gpt-4o",
+    "ops": "openai/gpt-4o",
+    "general": "openai/gpt-3.5-turbo"
+  }
+}
