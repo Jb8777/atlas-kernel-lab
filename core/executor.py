@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -10,6 +11,15 @@ from tools.http import run_http_request
 from tools.shell import run_shell_command
 
 log = get_logger(__name__)
+
+
+MODEL_BY_ACTION: dict[str, str] = {
+    "llm_code": "deepseek-coder:6.7b",
+    "llm_ops": "deepseek-coder:6.7b",
+    "llm_research": "mistral",
+    "llm_general": "mistral",
+}
+
 
 ROUTE_SYSTEM_PROMPTS: dict[str, str] = {
     "code": (
@@ -99,10 +109,20 @@ def _execute_step(step: str, action: str, context: dict[str, Any] | None = None)
     if action.startswith("llm"):
         ctx = context or {}
         prompt = f"Context:\n{ctx}\n\nTask:\n{step}"
+        chosen_model = MODEL_BY_ACTION.get(action)
+        old_model = os.environ.get("OLLAMA_MODEL")
         try:
+            if chosen_model:
+                os.environ["OLLAMA_MODEL"] = chosen_model
             return call_llm(prompt)
         except LLMClientError as e:
             return f"ERROR: {e}"
+        finally:
+            if chosen_model:
+                if old_model is None:
+                    os.environ.pop("OLLAMA_MODEL", None)
+                else:
+                    os.environ["OLLAMA_MODEL"] = old_model
     if action == "http_fetch":
         return run_http_request(step)
     return run_shell_command(step)

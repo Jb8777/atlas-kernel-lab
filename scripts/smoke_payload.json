@@ -1,0 +1,6 @@
+{
+  "task": "debug FastAPI endpoint",
+  "code": "@app.get(\"/users/{id}\")\nasync def get_user(id: int):\n    user = fetch_user(id)\n    return user.name",
+  "error": "500 Internal Server Error",
+  "goal": "return valid JSON"
+}

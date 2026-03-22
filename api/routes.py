@@ -11,12 +11,46 @@ router = APIRouter()
 log = get_logger(__name__)
 
 
+def build_effective_input(payload: "RouteRequest") -> str:
+    """
+    Convert legacy or structured request bodies into one effective execution string.
+    """
+    if payload.text and payload.text.strip():
+        return payload.text.strip()
+
+    parts: list[str] = []
+
+    if payload.task:
+        parts.append(f"Task: {payload.task.strip()}")
+    if payload.code:
+        parts.append("Code:\n```python\n" + payload.code.strip() + "\n```")
+    if payload.error:
+        parts.append(f"Error: {payload.error.strip()}")
+    if payload.goal:
+        parts.append(f"Goal: {payload.goal.strip()}")
+
+    effective = "\n\n".join(parts).strip()
+    if not effective:
+        raise ValueError("Provide either 'text' or at least one structured field: task, code, error, goal")
+
+    return effective
+
+
+
 class RouteRequest(BaseModel):
     """
     Request payload for /route.
+
+    Supports either:
+    - text: legacy flat prompt
+    - structured fields: task/code/error/goal
     """
 
-    text: str = Field(..., min_length=1, description="Task/prompt text to route and execute.")
+    text: str | None = Field(default=None, min_length=1, description="Legacy flat task/prompt text.")
+    task: str | None = Field(default=None, min_length=1, description="High-level task, e.g. fix bug.")
+    code: str | None = Field(default=None, min_length=1, description="Relevant source code.")
+    error: str | None = Field(default=None, min_length=1, description="Observed error message or failure mode.")
+    goal: str | None = Field(default=None, min_length=1, description="Desired outcome.")
 
 
 class HealthResponse(BaseModel):
@@ -55,7 +89,8 @@ def route_endpoint(payload: RouteRequest) -> RouteResponse:
     Route a prompt, create an execution plan, then execute it.
     """
     try:
-        routing = route_text(payload.text)
+        effective_input = build_effective_input(payload)
+        routing = route_text(effective_input)
         execution = execute_route(routing.route, routing.input)
         result = run_execution(execution, routing.input)
 

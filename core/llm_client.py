@@ -11,7 +11,7 @@ from core.logger import get_logger
 log = get_logger(__name__)
 
 OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_TIMEOUT_S = 30
+DEFAULT_TIMEOUT_S = int(os.getenv("LLM_TIMEOUT_S", "120"))
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "codellama")
 

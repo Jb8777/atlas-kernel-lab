@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Atlas: Smoke test",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "cd \"${workspaceFolder}\" && ./scripts/smoke_test.sh"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Atlas: Test",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "cd \"${workspaceFolder}\" && source .venv/bin/activate && pytest -q"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Atlas: Ollama tags",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "cd \"${workspaceFolder}\" && source .venv/bin/activate && curl -s http://127.0.0.1:11434/api/tags | python -m json.tool | sed -n '1,80p'"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}
