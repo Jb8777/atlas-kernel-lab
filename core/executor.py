@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from core.config_loader import get_model_for_route
 from core.llm_client import LLMClientError, call_llm
 from core.logger import get_logger
 from tools.http import run_http_request
@@ -12,14 +13,12 @@ from tools.shell import run_shell_command
 
 log = get_logger(__name__)
 
-
 MODEL_BY_ACTION: dict[str, str] = {
     "llm_code": "deepseek-coder:6.7b",
     "llm_ops": "deepseek-coder:6.7b",
     "llm_research": "mistral",
     "llm_general": "mistral",
 }
-
 
 ROUTE_SYSTEM_PROMPTS: dict[str, str] = {
     "code": (
@@ -61,7 +60,6 @@ class ExecutionPlan:
 def execute_route(route: str, input_text: str) -> ExecutionPlan:
     """
     Build an execution plan for the given route.
-
     Does not perform any I/O — safe to call in tests.
     """
     lowered = input_text.lower()
@@ -69,12 +67,10 @@ def execute_route(route: str, input_text: str) -> ExecutionPlan:
         action = "http_fetch" if ("http" in lowered or "www" in lowered) else "run_shell"
     else:
         action = ROUTE_ACTIONS.get(route, "llm_general")
-
     next_steps = [
         f"Execute {action} with provided input",
         "Return structured result to caller",
     ]
-
     return ExecutionPlan(route=route, action=action, next_steps=next_steps)
 
 
@@ -104,12 +100,25 @@ def _detect_action(step: str) -> str:
     return "run_shell"
 
 
-def _execute_step(step: str, action: str, context: dict[str, Any] | None = None) -> str:
-    """Run a single cleaned step and return its output string."""
+def _execute_step(
+    step: str,
+    action: str,
+    context: dict[str, Any] | None = None,
+    route: str = "",
+) -> str:
+    """Run a single cleaned step and return its output string.
+
+    When a route is provided, model selection prefers config/model_router.json
+    (via get_model_for_route) over the hard-coded MODEL_BY_ACTION fallback.
+    """
     if action.startswith("llm"):
         ctx = context or {}
         prompt = f"Context:\n{ctx}\n\nTask:\n{step}"
-        chosen_model = MODEL_BY_ACTION.get(action)
+        # Prefer config-driven model when route is known; fall back to action map
+        if route:
+            chosen_model = get_model_for_route(route)
+        else:
+            chosen_model = MODEL_BY_ACTION.get(action)
         old_model = os.environ.get("OLLAMA_MODEL")
         try:
             if chosen_model:
@@ -175,7 +184,6 @@ def _execute_loop(inner_cmd: str, n: int, context: dict[str, Any]) -> str:
 def run_execution(plan: ExecutionPlan, input_text: str) -> dict[str, Any]:
     """
     Full agent execution engine.
-
     Supports: multi-step, if/else branching, loops, structured memory,
     context-aware LLM, task auto-planning, safety enforcement, error isolation.
     Single-step (no "then") falls through to the legacy tool/LLM path.
@@ -195,7 +203,6 @@ def run_execution(plan: ExecutionPlan, input_text: str) -> dict[str, Any]:
     # MULTI-STEP ENGINE
     if "then" in expanded:
         raw_steps = expanded.split("then")
-
         context: dict[str, Any] = {"history": []}
         results: list[dict[str, Any]] = []
         skip_mode = False
@@ -208,7 +215,7 @@ def run_execution(plan: ExecutionPlan, input_text: str) -> dict[str, Any]:
 
             step_lower = step.lower()
 
-            # ── LOOP ────────────────────────────────────────────────────────
+            # ── LOOP ──────────────────────────────────────────────────────────
             m = re.match(r"repeat\s+(\d+)\s+times?\s+(.*)", step_lower, re.IGNORECASE)
             if m:
                 n = min(int(m.group(1)), 10)  # safety cap
@@ -223,14 +230,14 @@ def run_execution(plan: ExecutionPlan, input_text: str) -> dict[str, Any]:
                 results.append({"step": step, "action": "loop", "output": output})
                 continue
 
-            # ── ELSE ─────────────────────────────────────────────────────────
+            # ── ELSE ───────────────────────────────────────────────────────────
             if step_lower.startswith("else"):
                 skip_mode = not skip_mode
                 else_mode = True
                 results.append({"step": step, "action": "else", "output": f"else branch — skip_mode={skip_mode}"})
                 continue
 
-            # ── CONDITION ────────────────────────────────────────────────────
+            # ── CONDITION ──────────────────────────────────────────────────────
             if step_lower.startswith("if "):
                 else_mode = False
                 passed = _evaluate_condition(step, context)
@@ -242,15 +249,15 @@ def run_execution(plan: ExecutionPlan, input_text: str) -> dict[str, Any]:
                 })
                 continue
 
-            # ── SKIP ─────────────────────────────────────────────────────────
+            # ── SKIP ───────────────────────────────────────────────────────────
             if skip_mode:
                 results.append({"step": step, "action": "skipped", "output": "SKIPPED (previous condition false)"})
                 continue
 
-            # ── EXECUTE ──────────────────────────────────────────────────────
+            # ── EXECUTE ────────────────────────────────────────────────────────
             action = _detect_action(step)
             try:
-                output = _execute_step(step, action, context)
+                output = _execute_step(step, action, context, route=plan.route)
             except Exception as e:
                 output = f"ERROR: {e}"
                 log.exception("step execution failed: %s", step)
@@ -267,12 +274,10 @@ def run_execution(plan: ExecutionPlan, input_text: str) -> dict[str, Any]:
             "final_output": context.get("last_output"),
         }
 
-    # ── SINGLE-STEP (legacy path) ─────────────────────────────────────────────
+    # ── SINGLE-STEP (legacy path) ────────────────────────────────────────────
     cleaned_text = input_text.strip()
-
     if cleaned_text.startswith("run "):
         cleaned_text = cleaned_text.replace("run ", "", 1)
-
     if cleaned_text.startswith("fetch "):
         cleaned_text = cleaned_text.replace("fetch ", "", 1)
 
@@ -293,9 +298,10 @@ def run_execution(plan: ExecutionPlan, input_text: str) -> dict[str, Any]:
         }
 
     system_prompt = ROUTE_SYSTEM_PROMPTS.get(plan.route, ROUTE_SYSTEM_PROMPTS["general"])
-
+    # Use config-driven model for the single-step LLM path
+    model = get_model_for_route(plan.route)
     try:
-        output = call_llm(input_text, system=system_prompt)
+        output = call_llm(input_text, system=system_prompt, model=model)
         return {"status": "success", "output": output, "action": plan.action}
     except LLMClientError as e:
         log.warning("LLM call failed for route %s: %s", plan.route, e)
