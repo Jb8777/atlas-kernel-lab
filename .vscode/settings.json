@@ -1,5 +1,4 @@
 {
-  "python.defaultInterpreterPath": "/home/kali/AtlasKernel-lab/.venv/bin/python",
   "python.terminal.activateEnvironment": true,
   "editor.formatOnSave": true,
   "files.trimTrailingWhitespace": true,

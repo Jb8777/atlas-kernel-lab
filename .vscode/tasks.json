@@ -5,20 +5,14 @@
       "label": "Atlas: Smoke test",
       "type": "shell",
       "command": "bash",
-      "args": [
-        "-lc",
-        "cd \"${workspaceFolder}\" && ./scripts/smoke_test.sh"
-      ],
+      "args": ["-lc", "cd \"${workspaceFolder}\" && ./scripts/smoke_test.sh"],
       "problemMatcher": []
     },
     {
       "label": "Atlas: Test",
       "type": "shell",
       "command": "bash",
-      "args": [
-        "-lc",
-        "cd \"${workspaceFolder}\" && source .venv/bin/activate && pytest -q"
-      ],
+      "args": ["-lc", "cd \"${workspaceFolder}\" && python3 -m pytest -q"],
       "problemMatcher": []
     },
     {
@@ -27,7 +21,7 @@
       "command": "bash",
       "args": [
         "-lc",
-        "cd \"${workspaceFolder}\" && source .venv/bin/activate && curl -s http://127.0.0.1:11434/api/tags | python -m json.tool | sed -n '1,80p'"
+        "cd \"${workspaceFolder}\" && curl -s http://127.0.0.1:11434/api/tags | python3 -m json.tool | sed -n '1,80p'"
       ],
       "problemMatcher": []
     }
